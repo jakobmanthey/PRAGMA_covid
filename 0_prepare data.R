@@ -78,28 +78,22 @@ interv.dat.6 <- readRDS(filename)
 rm(filename)
 
 ##  PANDEMIC PERIODS
-period.input <- data.table(openxlsx::read.xlsx("data/input/covid-19-stringency-index.xlsx", detectDates = T))
+# downloaded on 22 may 2025 here: https://github.com/OxCGRT/covid-policy-dataset/tree/main/data
+# subnational
+#temp <- data.table(read.csv("data/input/OxCGRT_compact_subnational_v1.csv"))
+#temp[CountryCode == "DEU"] # no info
+#rm(temp2)
 
+# national
+period.input1 <- data.table(read.csv("data/input/OxCGRT_compact_national_v1.csv"))
+period.input1[CountryCode == "DEU", .(Date,StringencyIndex_Average,ContainmentHealthIndex_Average)]
 
+period.dat <- period.input1[CountryCode == "DEU", .(date = Date,stringency = StringencyIndex_Average,cases = ConfirmedCases,deaths = ConfirmedDeaths)]
+period.dat$date <- as.Date(as.character(period.dat$date), format = "%Y%m%d")
 
+# periods added manually
+period.input2 <- data.table(openxlsx::read.xlsx("data/input/covid-19-stringency-index.xlsx", detectDates = T))
 
-# Insurance period
-#filename <- paste0("data/input/1_data_insurance periods_", DATE,".rds")
-#ins.dat <- readRDS(filename)
-
-# Employment period
-#filename <- paste0("data/input/1_data_employment periods_", DATE,".rds")
-#emp.dat <- readRDS(filename)
-
-# Alcohol diagnoses
-#filename <- paste0("data/input/1_data_alcohol diagnoses_", DATE,".rds")
-#alc.diag.dat <- readRDS(filename)
-#rm(filename)
-
-# All diagnoses
-#filename <- paste0("data/input/1_data_all diagnoses_",DATE,".rds")
-#diag.dat <- readRDS(filename)
-#rm(filename)
 
 
 # ==================================================================================================================================================================
@@ -175,7 +169,7 @@ dat.q <- merge(dat.q,
                by = c("gkv","pragmaid"), all.x = T, allow.cartesian = T)
 
 dat.q <- merge(dat.q,
-               interv.dat.6[,.(pragmaid,date.reha.start,date.reha.end)],
+               interv.dat.6[,.(pragmaid,date.reha.start,date.reha.end,reha.typ)],
                by = c("pragmaid"), all.x = T, allow.cartesian = T)
 
 # ==================================================================================================================================================================
@@ -229,7 +223,7 @@ dat.m <- merge(dat.m,
                by = c("gkv","pragmaid"), all.x = T, allow.cartesian = T)
 
 dat.m <- merge(dat.m,
-               interv.dat.6[,.(pragmaid,date.reha.start,date.reha.end)],
+               interv.dat.6[,.(pragmaid,date.reha.start,date.reha.end,reha.typ)],
                by = c("pragmaid"), all.x = T, allow.cartesian = T)
 
 
@@ -288,7 +282,7 @@ dat.w <- merge(dat.w,
                by = c("gkv","pragmaid"), all.x = T, allow.cartesian = T)
 
 dat.w <- merge(dat.w,
-               interv.dat.6[,.(pragmaid,date.reha.start,date.reha.end)],
+               interv.dat.6[,.(pragmaid,date.reha.start,date.reha.end,reha.typ)],
                by = c("pragmaid"), all.x = T, allow.cartesian = T)
 gc()
 
@@ -313,7 +307,8 @@ for(DAT in dat.list){
   DAT$date.int3 <- F
   DAT$date.int4 <- F
   DAT$date.int5 <- F
-  DAT$date.int6 <- F
+  DAT$date.int6.outp <- F
+  DAT$date.int6.inp <- F
   
   # PSYCH-BRIEF
   DAT[date.psych_short %between% list(date.start,date.end)]
@@ -351,14 +346,22 @@ for(DAT in dat.list){
   #DAT[date.reha.start %between% list(date.start,date.end) |
   #       date.reha.end %between% list(date.start,date.end) |
   #       (date.reha.start <= date.start & date.reha.end >= date.end)][pragmaid == "zuXfE4s1LB"]
-  DAT[date.reha.start %between% list(date.start,date.end) |
-         date.reha.end %between% list(date.start,date.end) |
-         (date.reha.start <= date.start & date.reha.end >= date.end), date.int6 := T]
+  DAT[reha.typ %like% "ambulant" & (date.reha.start %between% list(date.start,date.end) |
+                                      date.reha.end %between% list(date.start,date.end) |
+                                      (date.reha.start <= date.start & date.reha.end >= date.end)), date.int6.outp := T]
+  DAT[reha.typ %like% "stationär" & (date.reha.start %between% list(date.start,date.end) |
+                                      date.reha.end %between% list(date.start,date.end) |
+                                      (date.reha.start <= date.start & date.reha.end >= date.end)), date.int6.inp := T]
   
   # GET date.in = person was in ANY treatment in that period
   DAT$date.in <- F
   DAT[, date.in := rowSums(.SD, na.rm = TRUE) > 0, 
       .SDcols = startsWith(names(DAT), "date.int")]
+  
+  # GET date.in_sens = person was in ANY treatment except REHA in that period
+  DAT$date.in_sens <- F
+  DAT[, date.in_sens := rowSums(.SD, na.rm = TRUE) > 0, 
+      .SDcols = names(DAT) %like% "date.int[1-5]"]
   
   ##  replace original data file
   if(i == 1){
@@ -382,6 +385,7 @@ gc()
 unique(dat.q[,.(pragmaid,date.in)])[, table(date.in)] # 5671 with any intervention at any time
 unique(dat.m[,.(pragmaid,date.in)])[, table(date.in)] # 5671 with any intervention at any time
 unique(dat.w[,.(pragmaid,date.in)])[, table(date.in)] # 5671 with any intervention at any time
+unique(dat.w[,.(pragmaid,date.in_sens)])[, table(date.in_sens)] # 5421 with any intervention at any time
 length(unique(dat.q$pragmaid)) # 25412
 length(unique(dat.m$pragmaid)) # 25412
 length(unique(dat.w$pragmaid)) # 25412
@@ -400,108 +404,117 @@ unique(dat.q[date.in == T,.(pragmaid,source)])[, table(source)] # all PRAGMA peo
 # ______________________________________________________________________________________________________________________
 # ______________________________________________________________________________________________________________________
 
-# aggregate across all interventions
+# PRIMARY: aggregate across all interventions
 # ..............
 
 agg.q <- dat.q[date.in == T,.(date.start = unique(date.start),
-                              n = length(unique(pragmaid))), by = .(year,quarter)][order(date.start)]
+                              primary = length(unique(pragmaid))), by = .(year,quarter)][order(date.start)]
 agg.m <- dat.m[date.in == T,.(date.start = unique(date.start),
-                              n = length(unique(pragmaid))), by = .(year,month)][order(date.start)]
+                              primary = length(unique(pragmaid))), by = .(year,month)][order(date.start)]
 agg.w <- dat.w[date.in == T,.(date.start = unique(date.start), n_days = unique(n_days),
-                              n = length(unique(pragmaid))), by = .(con_week,year,week)][order(date.start)]
-agg.w[n==0]
+                              primary = length(unique(pragmaid))), by = .(con_week,year,week)][order(date.start)]
+
+# SECONDARY: aggregate across OUTPATIENT/INPATIENT
+# ..............
+
+agg.w_outp <- dat.w[date.int1 == T | date.int2 == T | date.int3 == T | date.int6.outp == T,
+               .(date.start = unique(date.start), n_days = unique(n_days),
+                 secondary_outp = length(unique(pragmaid))), by = .(con_week,year,week)][order(date.start)]
+agg.w_inp  <- dat.w[date.int4 == T | date.int5 == T | date.int6.inp == T,
+               .(date.start = unique(date.start), n_days = unique(n_days),
+                 secondary_inp = length(unique(pragmaid))), by = .(con_week,year,week)][order(date.start)]
+
+# test:
+agg.w[con_week == 10]$primary # 226 in any treatment
+agg.w_outp[con_week == 10]$secondary_outp # 136 in outpatient treatment
+agg.w_inp[con_week == 10]$secondary_inp # 91 in outpatient treatment
+
+dat.w[con_week == 10 & date.in == T, length(unique(pragmaid))] # 226
+dat.w[con_week == 10 & (date.int1 == T | date.int2 == T | date.int3 == T | date.int6.outp == T), length(unique(pragmaid))] # 136
+dat.w[con_week == 10 & (date.int4 == T | date.int5 == T | date.int6.inp == T), length(unique(pragmaid))] # 91
+
+# combine
+data <- merge(agg.w,
+              agg.w_outp[,.(date.start,secondary_outp)],
+              by = c("date.start"))
+data <- merge(data,
+              agg.w_inp[,.(date.start,secondary_inp)],
+              by = c("date.start"))
 
 
-# aggregate for each intervention
+# SENSITIVITY: aggregations without rehab
+# ..............
+
+sens_agg.w <- dat.w[date.in_sens == T,.(date.start = unique(date.start), n_days = unique(n_days),
+                                        primary = length(unique(pragmaid))), by = .(con_week,year,week)][order(date.start)]
+sens_agg.w_outp <- dat.w[date.int1 == T | date.int2 == T | date.int3 == T,
+                         .(date.start = unique(date.start), n_days = unique(n_days),
+                           secondary_outp = length(unique(pragmaid))), by = .(con_week,year,week)][order(date.start)]
+sens_agg.w_inp  <- dat.w[date.int4 == T | date.int5 == T,
+                         .(date.start = unique(date.start), n_days = unique(n_days),
+                           secondary_inp = length(unique(pragmaid))), by = .(con_week,year,week)][order(date.start)]
+
+# test:
+sens_agg.w[con_week == 10]$primary # 160 in any treatment
+sens_agg.w_outp[con_week == 10]$secondary_outp # 103 in outpatient treatment
+sens_agg.w_inp[con_week == 10]$secondary_inp # 58 in inpatient treatment
+
+dat.w[con_week == 10 & date.in_sens == T, length(unique(pragmaid))] # 160
+dat.w[con_week == 10 & (date.int1 == T | date.int2 == T | date.int3 == T), length(unique(pragmaid))] # 103
+dat.w[con_week == 10 & (date.int4 == T | date.int5 == T), length(unique(pragmaid))] # 58
+
+# combine
+data_sens <- merge(sens_agg.w,
+              sens_agg.w_outp[,.(date.start,secondary_outp)],
+              by = c("date.start"))
+data_sens <- merge(data_sens,
+              sens_agg.w_inp[,.(date.start,secondary_inp)],
+              by = c("date.start"))
+
+
+
+# aggregate weekly for each intervention (for supplement)
 # ..............
 
 # PSYCH-BRIEF
-agg.q.i1 <- dat.q[date.int1 == T,.(int = "PSYCH-BRIEF",
-                                   date.start = unique(date.start),
-                                   n = length(unique(pragmaid))), by = .(year,quarter)][order(date.start)]
-agg.m.i1 <- dat.m[date.int1 == T,.(int = "PSYCH-BRIEF",
-                                   date.start = unique(date.start),
-                                   n = length(unique(pragmaid))), by = .(year,month)][order(date.start)]
 agg.w.i1 <- dat.w[date.int1 == T,.(int = "PSYCH-BRIEF",
                                    date.start = unique(date.start),
                                    n = length(unique(pragmaid))), by = .(year,week)][order(date.start)]
 
 # PSYCH-LONG
-agg.q.i2 <- dat.q[date.int2 == T,.(int = "PSYCH-LONG",
-                                   date.start = unique(date.start),
-                                   n = length(unique(pragmaid))), by = .(year,quarter)][order(date.start)]
-agg.m.i2 <- dat.m[date.int2 == T,.(int = "PSYCH-LONG",
-                                   date.start = unique(date.start),
-                                   n = length(unique(pragmaid))), by = .(year,month)][order(date.start)]
 agg.w.i2 <- dat.w[date.int2 == T,.(int = "PSYCH-LONG",
                                    date.start = unique(date.start),
                                    n = length(unique(pragmaid))), by = .(year,week)][order(date.start)]
 
 # PHARMA
-agg.q.i3 <- dat.q[date.int3 == T,.(int = "PHARMA",
-                                   date.start = unique(date.start),
-                                   n = length(unique(pragmaid))), by = .(year,quarter)][order(date.start)]
-agg.m.i3 <- dat.m[date.int3 == T,.(int = "PHARMA",
-                                   date.start = unique(date.start),
-                                   n = length(unique(pragmaid))), by = .(year,month)][order(date.start)]
 agg.w.i3 <- dat.w[date.int3 == T,.(int = "PHARMA",
                                    date.start = unique(date.start),
                                    n = length(unique(pragmaid))), by = .(year,week)][order(date.start)]
 
 #  INPAT-STANDARD
-agg.q.i4 <- dat.q[date.int4 == T,.(int = "INPAT-STANDARD",
-                                   date.start = unique(date.start),
-                                   n = length(unique(pragmaid))), by = .(year,quarter)][order(date.start)]
-agg.m.i4 <- dat.m[date.int4 == T,.(int = "INPAT-STANDARD",
-                                   date.start = unique(date.start),
-                                   n = length(unique(pragmaid))), by = .(year,month)][order(date.start)]
 agg.w.i4 <- dat.w[date.int4 == T,.(int = "INPAT-STANDARD",
                                    date.start = unique(date.start),
                                    n = length(unique(pragmaid))), by = .(year,week)][order(date.start)]
 
 #  INPAT-INTENSE
-agg.q.i5 <- dat.q[date.int5 == T,.(int = "INPAT-INTENSE",
-                                   date.start = unique(date.start),
-                                   n = length(unique(pragmaid))), by = .(year,quarter)][order(date.start)]
-agg.m.i5 <- dat.m[date.int5 == T,.(int = "INPAT-INTENSE",
-                                   date.start = unique(date.start),
-                                   n = length(unique(pragmaid))), by = .(year,month)][order(date.start)]
 agg.w.i5 <- dat.w[date.int5 == T,.(int = "INPAT-INTENSE",
                                    date.start = unique(date.start),
                                    n = length(unique(pragmaid))), by = .(year,week)][order(date.start)]
 
-##  REHAB
-agg.q.i6 <- dat.q[date.int6 == T,.(int = "REHAB",
-                                   date.start = unique(date.start),
-                                   n = length(unique(pragmaid))), by = .(year,quarter)][order(date.start)]
-agg.m.i6 <- dat.m[date.int6 == T,.(int = "REHAB",
-                                   date.start = unique(date.start),
-                                   n = length(unique(pragmaid))), by = .(year,month)][order(date.start)]
-agg.w.i6 <- dat.w[date.int6 == T,.(int = "REHAB",
-                                   date.start = unique(date.start),
-                                   n = length(unique(pragmaid))), by = .(year,week)][order(date.start)]
+##  REHAB-OUTPATIENT
+agg.w.i6.outp <- dat.w[date.int6.outp == T,.(int = "REHAB-OUTPATIENT",#
+                                        date.start = unique(date.start),
+                                        n = length(unique(pragmaid))), by = .(year,week)][order(date.start)]
+agg.w.i6.inp <- dat.w[date.int6.inp == T,.(int = "REHAB-INPATIENT",#
+                                            date.start = unique(date.start),
+                                            n = length(unique(pragmaid))), by = .(year,week)][order(date.start)]
 
 ##  COMBINE
-agg.q.int <- rbind(agg.q.i1,agg.q.i2,agg.q.i3,agg.q.i4,agg.q.i5,agg.q.i6)
-agg.q.int$int <- factor(agg.q.int$int,
-                        c("PSYCH-BRIEF","PSYCH-LONG",
-                          "PHARMA","INPAT-STANDARD",
-                          "INPAT-INTENSE","REHAB"))
-rm(agg.q.i1,agg.q.i2,agg.q.i3,agg.q.i4,agg.q.i5,agg.q.i6)
-
-agg.m.int <- rbind(agg.m.i1,agg.m.i2,agg.m.i3,agg.m.i4,agg.m.i5,agg.m.i6)
-agg.m.int$int <- factor(agg.m.int$int,
-                        c("PSYCH-BRIEF","PSYCH-LONG",
-                          "PHARMA","INPAT-STANDARD",
-                          "INPAT-INTENSE","REHAB"))
-rm(agg.m.i1,agg.m.i2,agg.m.i3,agg.m.i4,agg.m.i5,agg.m.i6)
-
-agg.w.int <- rbind(agg.w.i1,agg.w.i2,agg.w.i3,agg.w.i4,agg.w.i5,agg.w.i6)
+agg.w.int <- rbind(agg.w.i1,agg.w.i2,agg.w.i3,agg.w.i6.outp,agg.w.i6.inp,agg.w.i4,agg.w.i5)
 agg.w.int$int <- factor(agg.w.int$int,
-                        c("PSYCH-BRIEF","PSYCH-LONG",
-                          "PHARMA","INPAT-STANDARD",
-                          "INPAT-INTENSE","REHAB"))
-rm(agg.w.i1,agg.w.i2,agg.w.i3,agg.w.i4,agg.w.i5,agg.w.i6)
+                        c("PSYCH-BRIEF","PSYCH-LONG","PHARMA","REHAB-OUTPATIENT",
+                          "REHAB-INPATIENT","INPAT-STANDARD","INPAT-INTENSE"))
+rm(agg.w.i1,agg.w.i2,agg.w.i3,agg.w.i4,agg.w.i5,agg.w.i6.outp,agg.w.i6.inp)
 
 
 
@@ -516,55 +529,91 @@ rm(agg.w.i1,agg.w.i2,agg.w.i3,agg.w.i4,agg.w.i5,agg.w.i6)
 # ______________________________________________________________________________________________________________________
 # ______________________________________________________________________________________________________________________
 
-##  periods = from oxford stringency data
-period.dat <- copy(period.input)
-period.dat <- period.dat[Entity == "Germany" & year(Day) != 2022,.(
-  date = Day, week = isoweek(Day), weekday = weekdays(Day), period = period_week, con_day = seq(1:.N))]
-period.dat <- period.dat[,.(date.start = min(date)), by = .(week,period)]
-period.dat[, year := year(date.start)]
-period.dat[(year == 2020 & month(date.start) ==12)|(year == 2021 & month(date.start) == 1)] # looks correct
+##  periods = from oxford stringency data / manually defined
+add.period <- period.dat[year(date) != 2022,.(
+  date = date, week = isoweek(date), weekday = weekdays(date), con_day = seq(1:.N),
+  stringency, cases, deaths)]
+
+add.period <- merge(add.period, 
+                    period.input2[Entity == "Germany",.(date = Day,period = period_week)], 
+                    by = "date", all.x = T)
+
+##  prepare format
+add.period <- add.period[,.(date.start = min(date),year = year(min(date)),
+                            string_avg = mean(stringency),string_min = min(stringency),string_max = max(stringency),
+                            cases = sum(cases), deaths = sum(deaths)), by = .(week,period)]
+
+add.period[(year == 2020 & month(date.start) ==12)|(year == 2021 & month(date.start) == 1)] # looks correct
 
 ### weeks with 2 periods - should be none:
-period.dat[,.(length(unique(date.start))), by = .(year,week)][V1 != 1]
+add.period[,.(length(unique(date.start))), by = .(year,week)][V1 != 1]
 
 ##  combine
-agg.w <- merge(agg.w, period.dat, by = c("year","week","date.start"), all.x = T)
-agg.w[year < 2020, period := 1]
+data <- merge(data, add.period, by = c("year","week","date.start"), all.x = T)
+data[year < 2020, ':=' (period = 1,
+                         string_avg = 0,
+                         string_min = 0,
+                         string_max = 0,
+                         cases = 0,
+                         deaths = 0)]
+data[!complete.cases(data)] # none
+
+data_sens <- merge(data_sens, add.period, by = c("year","week","date.start"), all.x = T)
+data_sens[year < 2020, ':=' (period = 1,
+                        string_avg = 0,
+                        string_min = 0,
+                        string_max = 0,
+                        cases = 0,
+                        deaths = 0)]
+data_sens[!complete.cases(data_sens)] # none
 
 ##  check
-agg.w[(year == 2020 & week >= 50)|(year == 2021 & week <= 5)] # transition 20/21 looks correct
+data[(year == 2020 & week >= 50)|(year == 2021 & week <= 5)] # transition 20/21 looks correct
+data_sens[(year == 2020 & week >= 50)|(year == 2021 & week <= 5)] # transition 20/21 looks correct
 
 
 ##  LEVEL/SLOPE
 ##  slope definition according to https://academic.oup.com/ije/article/50/3/1011/5937253
 
 ##  period2
-w1 <- agg.w[period == 2, min(con_week)]
-w2 <- agg.w[period == 2, max(con_week)]
-agg.w[, p2.level := ifelse(con_week < w1 | con_week > w2, F, T)]
-agg.w[, p2.slope := ifelse(con_week < w1+1 | con_week > w2, 0, con_week-w1)]
-agg.w[con_week %between% c(w1,w2)]
+w1 <- data[period == 2, min(con_week)]
+w2 <- data[period == 2, max(con_week)]
+data[, p2.level := ifelse(con_week < w1 | con_week > w2, F, T)]
+data[, p2.slope := ifelse(con_week < w1+1 | con_week > w2, 0, con_week-w1)]
+data_sens[, p2.level := ifelse(con_week < w1 | con_week > w2, F, T)]
+data_sens[, p2.slope := ifelse(con_week < w1+1 | con_week > w2, 0, con_week-w1)]
+data[con_week %between% c(w1,w2)]
+data_sens[con_week %between% c(w1,w2)]
 
 ##  period3
-w1 <- agg.w[period == 3, min(con_week)]
-w2 <- agg.w[period == 3, max(con_week)]
-agg.w[, p3.level := ifelse(con_week < w1 | con_week > w2, F, T)]
-agg.w[, p3.slope := ifelse(con_week < w1+1 | con_week > w2, 0, con_week-w1)]
-agg.w[con_week %between% c(w1,w2)]
+w1 <- data[period == 3, min(con_week)]
+w2 <- data[period == 3, max(con_week)]
+data[, p3.level := ifelse(con_week < w1 | con_week > w2, F, T)]
+data[, p3.slope := ifelse(con_week < w1+1 | con_week > w2, 0, con_week-w1)]
+data_sens[, p3.level := ifelse(con_week < w1 | con_week > w2, F, T)]
+data_sens[, p3.slope := ifelse(con_week < w1+1 | con_week > w2, 0, con_week-w1)]
+data[con_week %between% c(w1,w2)]
+data_sens[con_week %between% c(w1,w2)]
 
 ##  period4
-w1 <- agg.w[period == 4, min(con_week)]
-w2 <- agg.w[period == 4, max(con_week)]
-agg.w[, p4.level := ifelse(con_week < w1 | con_week > w2, F, T)]
-agg.w[, p4.slope := ifelse(con_week < w1+1 | con_week > w2, 0, con_week-w1)]
-agg.w[con_week %between% c(w1,w2)]
+w1 <- data[period == 4, min(con_week)]
+w2 <- data_sens[period == 4, max(con_week)]
+data[, p4.level := ifelse(con_week < w1 | con_week > w2, F, T)]
+data[, p4.slope := ifelse(con_week < w1+1 | con_week > w2, 0, con_week-w1)]
+data_sens[, p4.level := ifelse(con_week < w1 | con_week > w2, F, T)]
+data_sens[, p4.slope := ifelse(con_week < w1+1 | con_week > w2, 0, con_week-w1)]
+data[con_week %between% c(w1,w2)]
+data_sens[con_week %between% c(w1,w2)]
 
 ##  period5
-w1 <- agg.w[period == 5, min(con_week)]
-w2 <- agg.w[period == 5, max(con_week)]
-agg.w[, p5.level := ifelse(con_week < w1 | con_week > w2, F, T)]
-agg.w[, p5.slope := ifelse(con_week < w1+1 | con_week > w2, 0, con_week-w1)]
-agg.w[con_week %between% c(w1,w2)]
+w1 <- data[period == 5, min(con_week)]
+w2 <- data[period == 5, max(con_week)]
+data[, p5.level := ifelse(con_week < w1 | con_week > w2, F, T)]
+data[, p5.slope := ifelse(con_week < w1+1 | con_week > w2, 0, con_week-w1)]
+data_sens[, p5.level := ifelse(con_week < w1 | con_week > w2, F, T)]
+data_sens[, p5.slope := ifelse(con_week < w1+1 | con_week > w2, 0, con_week-w1)]
+data[con_week %between% c(w1,w2)]
+data_sens[con_week %between% c(w1,w2)]
 
 
 
@@ -602,7 +651,7 @@ theme_set( theme_gdocs() )
 pdat <- copy(agg.q)
 pdat[, christmas := month(date.start) == 10]
 
-ggplot(pdat, aes(x = date.start, y = n)) + 
+ggplot(pdat, aes(x = date.start, y = primary)) + 
   ggtitle("Number of people in any alcohol-specific treatment - by quarter",
           "Dashed vertical lines (lockdowns): 22 March 2020-4 May 2020 | 2 Nov 2020-17 Aug 2021") +
   geom_vline(xintercept = c(as.Date("2020-03-20"),as.Date("2020-05-04")), linetype = 2) +
@@ -620,7 +669,7 @@ ggsave(filename = paste0("figs/", Sys.Date(), "_fig_x_time series quarterly.png"
 pdat <- copy(agg.m)
 pdat[, christmas := month(date.start) == 12]
 
-ggplot(pdat, aes(x = date.start, y = n)) + 
+ggplot(pdat, aes(x = date.start, y = primary)) + 
   ggtitle("Number of people in any alcohol-specific treatment - by month",
           "Dashed vertical lines (lockdowns): 22 March 2020-4 May 2020 | 2 Nov 2020-17 Aug 2021") +
   geom_vline(xintercept = c(as.Date("2020-03-20"),as.Date("2020-05-04")), linetype = 2) +
@@ -638,7 +687,7 @@ ggsave(filename = paste0("figs/", Sys.Date(), "_fig_x_time series monthly.png"),
 pdat <- copy(agg.w)
 pdat[, christmas := month(date.start) == 12]
 
-ggplot(pdat, aes(x = date.start, y = n)) + 
+ggplot(pdat, aes(x = date.start, y = primary)) + 
   ggtitle("Number of people in any alcohol-specific treatment - by week",
           "Dashed vertical lines (lockdowns): 22 March 2020-4 May 2020 | 2 Nov 2020-17 Aug 2021") +
   geom_vline(xintercept = c(as.Date("2020-03-20"),as.Date("2020-05-04")), linetype = 2) +
@@ -658,47 +707,6 @@ ggsave(filename = paste0("figs/", Sys.Date(), "_fig_x_time series weekly.png"),
 
 six_colors <- c("#FF7F0E", "#2CA02C", "#1F77B4", "#9467BD", "#8C564B", "#E377C2")
 
-##  quarterly
-pdat <- copy(agg.q.int)
-pdat[, christmas := month(date.start) == 10]
-
-ggplot(pdat, aes(x = date.start, y = n, color = int)) + 
-  ggtitle("Number of people in different alcohol-specific treatments - by quarter",
-          "Dashed vertical lines (lockdowns): 22 March 2020-4 May 2020 | 2 Nov 2020-17 Aug 2021") +
-  geom_vline(xintercept = c(as.Date("2020-03-20"),as.Date("2020-05-04")), linetype = 2) +
-  geom_vline(xintercept = c(as.Date("2020-11-02"),as.Date("2021-08-17")), linetype = 2) +
-  geom_line(linewidth = 1.0) +
-  geom_point(aes(fill = christmas), shape = 22, size = 2) + 
-  scale_fill_manual(values = c("black","red")) +
-  scale_color_viridis_d("interventions") +
-  scale_x_date("", breaks = "6 months", date_labels = "%y-%B") +
-  scale_y_continuous("N") + 
-  theme(legend.position = "bottom", legend.direction = "horizontal",
-        axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=0.5))
-
-ggsave(filename = paste0("figs/", Sys.Date(), "_fig_y_time series quarterly by intervention.png"),
-       width = 12, height = 6)
-
-##  monthly
-pdat <- copy(agg.m.int)
-pdat[, christmas := month(date.start) == 12]
-
-ggplot(pdat, aes(x = date.start, y = n, color = int)) + 
-  ggtitle("Number of people in different alcohol-specific treatments - by month",
-          "Dashed vertical lines (lockdowns): 22 March 2020-4 May 2020 | 2 Nov 2020-17 Aug 2021") +
-  geom_vline(xintercept = c(as.Date("2020-03-20"),as.Date("2020-05-04")), linetype = 2) +
-  geom_vline(xintercept = c(as.Date("2020-11-02"),as.Date("2021-08-17")), linetype = 2) +
-  geom_line(linewidth = 1.0) +
-  geom_point(aes(fill = christmas), shape = 22, size = 2) + 
-  scale_fill_manual(values = c("black","red")) +
-  scale_color_viridis_d("interventions") +
-  scale_x_date("", breaks = "6 months", date_labels = "%y-%B") +
-  scale_y_continuous("N") + 
-  theme(legend.position = "bottom", legend.direction = "horizontal",
-        axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=0.5))
-
-ggsave(filename = paste0("figs/", Sys.Date(), "_fig_y_time series monthly by intervention.png"),
-       width = 12, height = 6)
 
 ##  weekly
 pdat <- copy(agg.w.int)
@@ -721,6 +729,63 @@ ggplot(pdat, aes(x = date.start, y = n, color = int)) +
 ggsave(filename = paste0("figs/", Sys.Date(), "_fig_y_time series weekly by intervention.png"),
        width = 12, height = 6)
 
+# Z) stringency and cases/deaths over time
+# ..............
+
+pdat <- copy(period.dat[year(date) < 2022])
+
+background_shades <- data.frame(
+  period = factor(c(1,2,3,4,5)),
+  xmin = as.Date(c(as.character(min(pdat$date)-1),"2020-03-20","2020-05-04","2020-11-02","2021-08-17")),
+  xmax = as.Date(c("2020-03-19","2020-05-03","2020-11-01","2021-08-16",as.character(max(pdat$date)+1)))
+)
+
+ggplot(pdat, aes(x = date, y = stringency)) + 
+  ggtitle("Daily OxCGRT Stringency Index",
+          "Dashed vertical lines (lockdowns): 22 March 2020-4 May 2020 | 2 Nov 2020-17 Aug 2021") +
+  geom_rect(data = background_shades, 
+            aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf, fill = period), 
+            inherit.aes = FALSE, alpha = 0.5, show.legend = F) +
+  geom_vline(xintercept = c(as.Date("2020-03-20"),as.Date("2020-05-04")), linetype = 2) +
+  geom_vline(xintercept = c(as.Date("2020-11-02"),as.Date("2021-08-17")), linetype = 2) +
+  #geom_ribbon(aes(ymin = string_min, ymax = string_max), alpha = 0.2, color = "grey") + 
+  geom_line(linewidth = 1.0) +
+  scale_fill_viridis_d("periods") +
+  scale_x_date("", breaks = "3 months", date_labels = "%y-%B") +
+  scale_y_continuous("N") + 
+  theme(legend.position = "bottom", legend.direction = "horizontal",
+        axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=0.5))
+
+ggsave(filename = paste0("figs/", Sys.Date(), "_fig_z_time series stringency.png"),
+       width = 12, height = 6)
+
+
+########
+
+pdat <- melt(data[year > 2019,.(date.start,cases,deaths)], id.vars = "date.start")
+pdat[, value_diff := c(0,diff(value)), by = variable]
+
+ggplot(pdat, aes(x = date.start, y = value_diff, linetype = variable)) + 
+  ggtitle("Weekly COVID-19 cases and deaths",
+          "Dashed vertical lines (lockdowns): 22 March 2020-4 May 2020 | 2 Nov 2020-17 Aug 2021") +
+  geom_rect(data = background_shades, 
+            aes(xmin = xmin, xmax = xmax, ymin = 0, ymax = 10000000, fill = period), 
+            inherit.aes = FALSE, alpha = 0.5, show.legend = F) +
+  geom_vline(xintercept = c(as.Date("2020-03-20"),as.Date("2020-05-04")), linetype = 2) +
+  geom_vline(xintercept = c(as.Date("2020-11-02"),as.Date("2021-08-17")), linetype = 2) +
+  geom_line(linewidth = 1.0) +
+  scale_fill_viridis_d("periods") +
+  scale_linetype_discrete("") +
+  scale_x_date("", breaks = "3 months", date_labels = "%y-%B") +
+  scale_y_continuous("N", transform = "log10") + 
+  theme(legend.position = "bottom", legend.direction = "horizontal",
+        axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=0.5))
+
+ggsave(filename = paste0("figs/", Sys.Date(), "_fig_z_time series cases and deaths.png"),
+       width = 12, height = 6)
+
+
+
 
 # ==================================================================================================================================================================
 # ==================================================================================================================================================================
@@ -730,8 +795,8 @@ ggsave(filename = paste0("figs/", Sys.Date(), "_fig_y_time series weekly by inte
 # 9) SAFE OUTPUT FILES
 # ______________________________________________________________________________________________________________________
 
-saveRDS(sum.dat, paste0("data/output/", Sys.Date(), "summary data.RDS"))
-saveRDS(agg.w, paste0("data/output/", Sys.Date(), "_weekly count.RDS"))
+saveRDS(sum.dat, paste0("data/output/", Sys.Date(), "_summary data.RDS"))
+saveRDS(data, paste0("data/output/", Sys.Date(), "_main data.RDS"))
+saveRDS(data_sens, paste0("data/output/", Sys.Date(), "_sensitivity data.RDS"))
 saveRDS(agg.w.int, paste0("data/output/", Sys.Date(), "_weekly count_intervention.RDS"))
-
-
+saveRDS(period.dat, paste0("data/output/", Sys.Date(), "_period and stringency data.RDS"))

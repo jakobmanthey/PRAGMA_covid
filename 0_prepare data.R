@@ -122,7 +122,62 @@ empty[(year == 2020 & month == 12)|(year == 2021 & month == 1)] # looks correct
 # ==================================================================================================================================================================
 # ==================================================================================================================================================================
 
-# 2) PREPARE AGGREGATED DATA - QUARTERLY
+# 2) PREPARE AGGREGATED DATA - YEARLY
+# ______________________________________________________________________________________________________________________
+# ______________________________________________________________________________________________________________________
+# ______________________________________________________________________________________________________________________
+
+# prepare yearly data for each ID
+# ..............
+
+dat.y <- unique(empty[,.(date.start = min(date),
+                         date.end = max(date)), by = .(year)])
+
+add <- rbind(id.dat[,.(pragmaid,source,gkv,year = 2016)],
+             id.dat[,.(pragmaid,source,gkv,year = 2017)],
+             id.dat[,.(pragmaid,source,gkv,year = 2018)],
+             id.dat[,.(pragmaid,source,gkv,year = 2019)],
+             id.dat[,.(pragmaid,source,gkv,year = 2020)],
+             id.dat[,.(pragmaid,source,gkv,year = 2021)])
+
+dat.y <- merge(add, dat.y, by = "year", allow.cartesian = T)
+dat.y[, .N, by = .(pragmaid,source)] # 6
+rm(add)
+
+# add interventions
+# ..............
+
+dat.y <- merge(dat.y,
+               interv.dat.1[,.(source,pragmaid,date.psych_short)], 
+               by = c("source","pragmaid"), all.x = T, allow.cartesian = T)
+
+dat.y <- merge(dat.y,
+               interv.dat.2[,.(source,pragmaid,date.psych_full.start,date.psych_full.end)],
+               by = c("source","pragmaid"), all.x = T, allow.cartesian = T)
+
+dat.y <- merge(dat.y,
+               interv.dat.3[,.(gkv,pragmaid,date.medi)],
+               by = c("gkv","pragmaid"), all.x = T, allow.cartesian = T)
+
+dat.y <- merge(dat.y,
+               interv.dat.4[,.(gkv,pragmaid,date.inpat.start,date.inpat.end)],
+               by = c("gkv","pragmaid"), all.x = T, allow.cartesian = T)
+
+dat.y <- merge(dat.y,
+               interv.dat.5[,.(gkv,pragmaid,date.qwt.start,date.qwt.end)],
+               by = c("gkv","pragmaid"), all.x = T, allow.cartesian = T)
+
+dat.y <- merge(dat.y,
+               interv.dat.6[,.(pragmaid,date.reha.start,date.reha.end,reha.typ)],
+               by = c("pragmaid"), all.x = T, allow.cartesian = T)
+
+
+# ==================================================================================================================================================================
+# ==================================================================================================================================================================
+# ==================================================================================================================================================================
+# ==================================================================================================================================================================
+
+# 3) PREPARE AGGREGATED DATA - QUARTERLY
 # ______________________________________________________________________________________________________________________
 # ______________________________________________________________________________________________________________________
 # ______________________________________________________________________________________________________________________
@@ -177,7 +232,7 @@ dat.q <- merge(dat.q,
 # ==================================================================================================================================================================
 # ==================================================================================================================================================================
 
-# 3) PREPARE AGGREGATED DATA - MONTHLY
+# 4) PREPARE AGGREGATED DATA - MONTHLY
 # ______________________________________________________________________________________________________________________
 # ______________________________________________________________________________________________________________________
 # ______________________________________________________________________________________________________________________
@@ -232,7 +287,7 @@ dat.m <- merge(dat.m,
 # ==================================================================================================================================================================
 # ==================================================================================================================================================================
 
-# 4) PREPARE AGGREGATED DATA - WEEKLY
+# 5) PREPARE AGGREGATED DATA - WEEKLY
 # ______________________________________________________________________________________________________________________
 # ______________________________________________________________________________________________________________________
 # ______________________________________________________________________________________________________________________
@@ -292,12 +347,12 @@ gc()
 # ==================================================================================================================================================================
 # ==================================================================================================================================================================
 
-# 5) DETERMINE OVERLAPS IN AGGREGATED DATA
+# 6) DETERMINE OVERLAPS IN AGGREGATED DATA
 # ______________________________________________________________________________________________________________________
 # ______________________________________________________________________________________________________________________
 # ______________________________________________________________________________________________________________________
 
-dat.list <- list(dat.q,dat.m,dat.w)
+dat.list <- list(dat.y,dat.q,dat.m,dat.w)
 i <- 1
 for(DAT in dat.list){
   
@@ -365,14 +420,18 @@ for(DAT in dat.list){
   
   ##  replace original data file
   if(i == 1){
+    dat.y <- DAT
+    print("dat.y done")
+  }
+  if(i == 2){
     dat.q <- DAT
     print("dat.q done")
   }
-  if(i == 2){
+  if(i == 3){
     dat.m <- DAT
     print("dat.m done")
   }
-  if(i == 3){
+  if(i == 4){
     dat.w <- DAT
     print("dat.w done")
   }
@@ -382,10 +441,12 @@ for(DAT in dat.list){
 }
 rm(dat.list)
 gc()
+unique(dat.y[,.(pragmaid,date.in)])[, table(date.in)] # 5671 with any intervention at any time
 unique(dat.q[,.(pragmaid,date.in)])[, table(date.in)] # 5671 with any intervention at any time
 unique(dat.m[,.(pragmaid,date.in)])[, table(date.in)] # 5671 with any intervention at any time
 unique(dat.w[,.(pragmaid,date.in)])[, table(date.in)] # 5671 with any intervention at any time
 unique(dat.w[,.(pragmaid,date.in_sens)])[, table(date.in_sens)] # 5421 with any intervention at any time
+length(unique(dat.y$pragmaid)) # 25412
 length(unique(dat.q$pragmaid)) # 25412
 length(unique(dat.m$pragmaid)) # 25412
 length(unique(dat.w$pragmaid)) # 25412
@@ -407,6 +468,8 @@ unique(dat.q[date.in == T,.(pragmaid,source)])[, table(source)] # all PRAGMA peo
 # PRIMARY: aggregate across all interventions
 # ..............
 
+agg.y <- dat.y[date.in == T,.(date.start = unique(date.start),
+                              primary = length(unique(pragmaid))), by = .(year)][order(date.start)]
 agg.q <- dat.q[date.in == T,.(date.start = unique(date.start),
                               primary = length(unique(pragmaid))), by = .(year,quarter)][order(date.start)]
 agg.m <- dat.m[date.in == T,.(date.start = unique(date.start),
@@ -709,6 +772,7 @@ saveRDS(data, paste0("data/output/", Sys.Date(), "_main data.RDS"))
 saveRDS(data_sens, paste0("data/output/", Sys.Date(), "_sensitivity data.RDS"))
 #saveRDS(agg.w.int, paste0("data/output/", Sys.Date(), "_weekly count_intervention.RDS"))
 saveRDS(period.dat, paste0("data/output/", Sys.Date(), "_period and stringency data.RDS"))
+saveRDS(agg.y, paste0("data/output/", Sys.Date(), "_year count.RDS"))
 saveRDS(agg.q, paste0("data/output/", Sys.Date(), "_quarter count.RDS"))
 saveRDS(agg.m, paste0("data/output/", Sys.Date(), "_month count.RDS"))
 

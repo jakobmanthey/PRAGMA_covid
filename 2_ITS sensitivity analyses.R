@@ -391,7 +391,7 @@ rm(dat.sec2, obs, alt)
 # 6) TABLES
 # ______________________________________________________________________________________________________________________
 
-##  1) SUP TAB 2
+##  1) SUP TAB 3
 # ..............
 
 sjPlot::tab_model(pri.mod.2,
@@ -410,4 +410,3 @@ saveRDS(sec1.mod.1, file = paste0("data/output/",DATE,"_secondary outcome1_model
 saveRDS(sec2.mod.2, file = paste0("data/output/",DATE,"_secondary outcome2_model_sensitivity.rds"))
 
 saveRDS(data, paste0("data/output/", DATE, "_sensitivity data with predictions.RDS"))
-

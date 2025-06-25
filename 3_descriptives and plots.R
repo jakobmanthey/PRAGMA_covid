@@ -47,6 +47,9 @@ sum.dat <- readRDS(filename)
 filename <- paste0("data/output/", DATE, "_period and stringency data.RDS")
 period.dat <- readRDS(filename)
 
+filename <- paste0("data/output/", Sys.Date(), "_year count.RDS")
+agg.y <- readRDS(filename)
+
 filename <- paste0("data/output/", Sys.Date(), "_quarter count.RDS")
 agg.q <- readRDS(filename)
 
@@ -87,6 +90,20 @@ background_shades <- data.frame(
   xmax = c(date.period2,date.period3,date.period4,date.period5,as.Date(as.character(max(data$date)+1)))
 )
 
+##  date breaks
+date.breaks <- c(as.Date("2016-01-01"),
+                 as.Date("2016-07-01"),
+                 as.Date("2017-01-01"),
+                 as.Date("2017-07-01"),
+                 as.Date("2018-01-01"),
+                 as.Date("2018-07-01"),
+                 as.Date("2019-01-01"),
+                 as.Date("2019-07-01"),
+                 as.Date("2020-01-01"),
+                 as.Date("2020-07-01"),
+                 as.Date("2021-01-01"),
+                 as.Date("2021-07-01"))
+
 
 # ==================================================================================================================================================================
 # ==================================================================================================================================================================
@@ -122,7 +139,44 @@ sum.dat[, table(int.reha_inp)]
 # ==================================================================================================================================================================
 # ==================================================================================================================================================================
 
-# 3) FIGURES
+# 3) TABLES
+# ______________________________________________________________________________________________________________________
+
+##  1) SUPPLEMENTARY TABLE 1
+# ..............
+
+# period 1:
+period.dat[date < as.Date("2020-03-22"),]
+period.dat[date < as.Date("2020-03-22"), summary(stringency)]
+# period 2:
+period.dat[date %between% c(as.Date("2020-03-22"),as.Date("2020-05-05"))]
+period.dat[date %between% c(as.Date("2020-03-22"),as.Date("2020-05-05")), summary(stringency)]
+# period 3:
+period.dat[date %between% c(as.Date("2020-05-06"),as.Date("2020-12-14")),]
+period.dat[date %between% c(as.Date("2020-05-06"),as.Date("2020-12-14")), summary(stringency)]
+# period 4:
+period.dat[date %between% c(as.Date("2020-12-15"),as.Date("2021-05-30")),]
+period.dat[date %between% c(as.Date("2020-12-15"),as.Date("2021-05-30")), summary(stringency)]
+# period 5:
+period.dat[date %between% c(as.Date("2021-05-31"),as.Date("2021-12-31")),]
+period.dat[date %between% c(as.Date("2021-05-31"),as.Date("2021-12-31")), summary(stringency)]
+
+##  2) SUPPLEMENTARY TABLE 2
+# ..............
+
+agg.y
+sum.dat
+1-agg.y[year == 2020]$primary / agg.y[year == 2019]$primary 
+1-agg.y[year == 2021]$primary / agg.y[year == 2019]$primary 
+
+
+
+# ==================================================================================================================================================================
+# ==================================================================================================================================================================
+# ==================================================================================================================================================================
+# ==================================================================================================================================================================
+
+# 4) FIGURES
 # ______________________________________________________________________________________________________________________
 
 ##  1) FIG 1
@@ -146,19 +200,21 @@ pdat[, variable := dplyr::recode(variable,
                                  "secondary_outp" = "Outpatient treatment (secondary)",
                                  "secondary_inp" = "Inpatient treatment (secondary)")]
 
+
 ggplot(pdat, aes(x = date.start, y = observed, color = variable)) + 
   geom_rect(data = background_shades, 
             aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf, fill = period), 
             inherit.aes = FALSE, show.legend = F, alpha = 0.3) +
   #ggtitle("Number of people per week in any AUD treatment (and by outpatient/inpatient)",
   #        paste0("Dashed vertical lines separating pandemic periods: ", date.period2," | ", date.period3," | ", date.period4," | ", date.period5)) +
+  #geom_vline(xintercept = c(years), linetype = 3) +
   geom_vline(xintercept = c(as.Date(date.period2),as.Date(date.period3),as.Date(date.period4),as.Date(date.period5)), linetype = 2) +
   geom_point(shape = 22, size = 2) +  
   geom_line(aes(y = predicted), linewidth = 0.5) +
   scale_color_manual("", values = col3) +
   scale_fill_manual("periods", values = c("white",col.red,col.yel,col.red,col.yel)) +
   scale_x_date("", limits = c(min(pdat$date.start)-1,max(pdat$date.start)+1), 
-               breaks = "24 weeks", date_labels = "%d %b %y", expand = c(0.01, 0.01)) +
+               breaks = date.breaks, date_labels = "%d %b %y", expand = c(0.01, 0.01)) +
   scale_y_continuous("N", limits = c(0,max(pdat$observed)+10)) +
   theme(legend.position = "bottom", legend.direction = "horizontal",
         axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=0.5))
@@ -190,7 +246,7 @@ ggplot(pdat, aes(x = date.start, y = primary)) +
   geom_point(shape = 22, size = 2) +  
   geom_line(linewidth = 0.5) +
   scale_fill_manual("periods", values = c("white",col.red,col.yel,col.red,col.yel)) +
-  scale_x_date("", breaks = "24 weeks", date_labels = "%d %b %y", expand = c(0.01, 0.01)) +
+  scale_x_date("", breaks = date.breaks, date_labels = "%d %b %y", expand = c(0.01, 0.01)) +
   scale_y_continuous("N", limits = c(0,1300)) +
   theme(axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=0.5))
 
@@ -215,7 +271,7 @@ ggplot(pdat, aes(x = date.start, y = primary)) +
   geom_point(shape = 22, size = 2) +  
   geom_line(linewidth = 0.5) +
   scale_fill_manual("periods", values = c("white",col.red,col.yel,col.red,col.yel)) +
-  scale_x_date("", breaks = "24 weeks", date_labels = "%d %b %y", expand = c(0.01, 0.01)) +
+  scale_x_date("", breaks = date.breaks, date_labels = "%d %b %y", expand = c(0.01, 0.01)) +
   scale_y_continuous("N", limits = c(0,700)) +
   theme(axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=0.5))
 
@@ -249,6 +305,7 @@ ggsave(filename = paste0("figs/", Sys.Date(), "_SUPP FIG_3_time series OxCGRT.pn
 
 rm(pdat)
 
+
 ##  4) SUPP FIG 4
 # ..............
 
@@ -276,6 +333,7 @@ ggsave(filename = paste0("figs/", Sys.Date(), "_SUPP FIG_4_time series covide ca
 
 
 rm(pdat)
+
 
 ##  5) SUPP FIG 5
 # ..............
@@ -308,6 +366,7 @@ par(mfrow = c(3, 2), mar = c(4, 4, 4, 1), oma = c(0, 0, 4, 0))
 dev.off()
 
 rm(res.pri, res.sec1, res.sec2)
+
 
 ##  6) SUPP FIG 6
 # ..............
@@ -366,14 +425,14 @@ ggplot(pdat, aes(x = date.start, y = observed, color = variable)) +
             aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf, fill = period), 
             inherit.aes = FALSE, show.legend = F, alpha = 0.3) +
   ggtitle("Sensitivity analyses: Number of people per week in any/outpatient/inpatient AUD treatment",
-          paste0("Dashed vertical lines separating pandemic periods: ", date.period2," | ", date.period3," | ", date.period4," | ", date.period5)) +
+          paste0("Without rehabilitation treatment; dashed vertical lines separating pandemic periods: ", date.period2," | ", date.period3," | ", date.period4," | ", date.period5)) +
   geom_vline(xintercept = c(as.Date(date.period2),as.Date(date.period3),as.Date(date.period4),as.Date(date.period5)), linetype = 2) +
   geom_point(shape = 22, size = 2) +  
   geom_line(aes(y = predicted), linewidth = 0.5) +
   scale_color_manual("", values = col3) +
   scale_fill_manual("periods", values = c("white",col.red,col.yel,col.red,col.yel)) +
   scale_x_date("", limits = c(min(pdat$date.start)-1,max(pdat$date.start)+1), 
-               breaks = "24 weeks", date_labels = "%d %b %y", expand = c(0.01, 0.01)) +
+               breaks = date.breaks, date_labels = "%d %b %y", expand = c(0.01, 0.01)) +
   scale_y_continuous("N", limits = c(0,max(pdat$observed)+10)) +
   theme(legend.position = "bottom", legend.direction = "horizontal",
         axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=0.5))

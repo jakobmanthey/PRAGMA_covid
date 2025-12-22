@@ -221,6 +221,9 @@ ggplot(pdat, aes(x = date.start, y = observed, color = variable)) +
 
 ggsave(filename = paste0("figs/", Sys.Date(), "_FIG_1_time series primary-secondary outcomes.png"),
        width = 12, height = 6)
+ggsave(filename = paste0("figs/", Sys.Date(), "_FIG_1_time series primary-secondary outcomes.tif"),
+       width = 12, height = 6)
+
 
 # ==================================================================================================================================================================
 # ==================================================================================================================================================================

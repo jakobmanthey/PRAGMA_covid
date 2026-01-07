@@ -16,6 +16,7 @@ inpath <- paste0("data/output/preprocessed/")
 
 # date
 DATE <- Sys.Date() #"2025-06-18"
+DATE <- "2025-07-29"
 
 # load libraries
 library( data.table )
@@ -47,13 +48,13 @@ sum.dat <- readRDS(filename)
 filename <- paste0("data/output/", DATE, "_period and stringency data.RDS")
 period.dat <- readRDS(filename)
 
-filename <- paste0("data/output/", Sys.Date(), "_year count.RDS")
+filename <- paste0("data/output/", DATE, "_year count.RDS")
 agg.y <- readRDS(filename)
 
-filename <- paste0("data/output/", Sys.Date(), "_quarter count.RDS")
+filename <- paste0("data/output/", DATE, "_quarter count.RDS")
 agg.q <- readRDS(filename)
 
-filename <- paste0("data/output/", Sys.Date(), "_month count.RDS")
+filename <- paste0("data/output/", DATE, "_month count.RDS")
 agg.m <- readRDS(filename)
 
 ##  from: 1_ITS main analyses.R
@@ -125,12 +126,19 @@ sum.dat[, summary(2020-yob)]
 
 # by intervention
 sum.dat[, table(int.psych_short)]
+sum.dat[, prop.table(table(int.psych_short))] # 54.6%
 sum.dat[, table(int.psych_full)]
+sum.dat[, prop.table(table(int.psych_full))] # 2.0%
 sum.dat[, table(int.medi)]
+sum.dat[, prop.table(table(int.medi))] # 4.8%
 sum.dat[, table(int.inpat)]
+sum.dat[, prop.table(table(int.inpat))] # 31.6
 sum.dat[, table(int.qwt)]
+sum.dat[, prop.table(table(int.qwt))] # 33.9%
 sum.dat[, table(int.reha_outp)]
+sum.dat[, prop.table(table(int.reha_outp))] # 9.3%
 sum.dat[, table(int.reha_inp)]
+sum.dat[, prop.table(table(int.reha_inp))] # 9.9%
 
 
 
